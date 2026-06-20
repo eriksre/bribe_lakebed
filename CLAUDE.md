@@ -16,6 +16,7 @@ Your role is to build software within this capsule. Lakebed is the runtime, the 
 - Do not add a CSS, PostCSS, or Tailwind build pipeline. They are built in.
 - There is no file based routing. Use the built-in client router from `lakebed/client` when you need pages.
 - All imports must be from Lakebed or from relative paths.
+- Client modules may import Preact hooks and types directly because Lakebed's client runtime is Preact-based and does not currently re-export `useState`, `useEffect`, `useMemo`, `createContext`, or `ComponentChildren`. Do not import any other external package directly.
 - Do not use Node built-ins in app code.
 - Use auth through `ctx.auth` on the server and `useAuth()` on the client.
 - Read server-only environment variables through `ctx.env`; define them in `.env.lakebed.server`.
