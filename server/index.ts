@@ -638,14 +638,17 @@ function getPublicSnapshot(ctx: DbContext): PublicSnapshot {
     ),
   );
   const publicCampaignIds = new Set(campaigns.map((campaign) => campaign.id));
-  const publicVenueIds = new Set(campaigns.map((campaign) => campaign.venueId));
+  const publicVenueIds = new Set<string>(activeVenueIds);
+  for (const campaign of campaigns) {
+    publicVenueIds.add(campaign.venueId);
+  }
   const publicQrCodes = qrCodes
     .map((qrCode) => ({
       ...qrCode,
       ownerId: "",
       campaignIds: joinIds(splitIds(qrCode.campaignIds).filter((campaignId) => publicCampaignIds.has(campaignId))),
     }))
-    .filter((qrCode) => publicVenueIds.has(qrCode.venueId) && splitIds(qrCode.campaignIds).length > 0);
+    .filter((qrCode) => publicVenueIds.has(qrCode.venueId));
   const publicQrIds = new Set(publicQrCodes.map((qrCode) => qrCode.id));
 
   return {

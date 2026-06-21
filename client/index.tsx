@@ -54,8 +54,12 @@ const emptyPublic: PublicSnapshot = {
 
 export function App() {
   const auth = useAuth();
-  const ownerData = normalizeOwnerSnapshot(useQuery<unknown>("ownerSnapshot"));
-  const publicData = normalizePublicSnapshot(useQuery<unknown>("publicSnapshot"));
+  const ownerSnapshot = useQuery<unknown>("ownerSnapshot");
+  const publicSnapshot = useQuery<unknown>("publicSnapshot");
+  const ownerLoaded = isOwnerSnapshot(ownerSnapshot);
+  const publicLoaded = isPublicSnapshot(publicSnapshot);
+  const ownerData = normalizeOwnerSnapshot(ownerSnapshot);
+  const publicData = normalizePublicSnapshot(publicSnapshot);
   const location = useLocationState();
   const mutations: Mutations = {
     ensureWorkspace: useMutation<[], OwnerSnapshot>("ensureWorkspace"),
@@ -85,34 +89,45 @@ export function App() {
         location={location}
         mutations={mutations}
         ownerData={ownerData}
+        ownerLoaded={ownerLoaded}
         publicData={publicData}
+        publicLoaded={publicLoaded}
       />
     </Router>
   );
 }
-function normalizeOwnerSnapshot(value: unknown): OwnerSnapshot {
-  if (
+
+function isOwnerSnapshot(value: unknown): value is OwnerSnapshot {
+  return Boolean(
     value &&
     !Array.isArray(value) &&
     typeof value === "object" &&
     "campaigns" in value &&
     "qrCodes" in value &&
     "submissions" in value
-  ) {
+  );
+}
+
+function normalizeOwnerSnapshot(value: unknown): OwnerSnapshot {
+  if (isOwnerSnapshot(value)) {
     return value as OwnerSnapshot;
   }
   return emptyOwner;
 }
 
-function normalizePublicSnapshot(value: unknown): PublicSnapshot {
-  if (
+function isPublicSnapshot(value: unknown): value is PublicSnapshot {
+  return Boolean(
     value &&
     !Array.isArray(value) &&
     typeof value === "object" &&
     "venues" in value &&
     "campaigns" in value &&
     "qrCodes" in value
-  ) {
+  );
+}
+
+function normalizePublicSnapshot(value: unknown): PublicSnapshot {
+  if (isPublicSnapshot(value)) {
     const snapshot = value as Partial<PublicSnapshot>;
     return {
       venues: Array.isArray(snapshot.venues) ? snapshot.venues : [],
@@ -131,13 +146,17 @@ function ResolvedApp({
   location,
   mutations,
   ownerData,
+  ownerLoaded,
   publicData,
+  publicLoaded,
 }: {
   auth: ReturnType<typeof useAuth>;
   location: LocationState;
   mutations: Mutations;
   ownerData: OwnerSnapshot;
+  ownerLoaded: boolean;
   publicData: PublicSnapshot;
+  publicLoaded: boolean;
 }) {
   const path = location.path;
 
@@ -152,6 +171,7 @@ function ResolvedApp({
         location={location}
         mutations={mutations}
         ownerData={ownerData}
+        ownerLoaded={ownerLoaded}
       />
     );
   }
@@ -163,6 +183,9 @@ function ResolvedApp({
   if (path.startsWith("/q/")) {
     const parts = path.split("/").filter(Boolean);
     const publicId = parts[1] ?? "";
+    if (!publicLoaded) {
+      return <PublicLoadingPage />;
+    }
     if (parts[2] === "submit") {
       return (
         <QrSubmitPage
@@ -183,6 +206,10 @@ function ResolvedApp({
       return <PatronTryAgainPage location={location} mutations={mutations} qrPublicId={publicId} />;
     }
     return <QrLandingPage publicData={publicData} publicId={publicId} />;
+  }
+
+  if (!publicLoaded) {
+    return <PublicLoadingPage />;
   }
 
   const publicMatch = matchPublicPath(path, publicData);
@@ -207,6 +234,16 @@ function ResolvedApp({
         <div className="mt-4">
           <ButtonLink href="/">Back to Bribe</ButtonLink>
         </div>
+      </Card>
+    </PatronShell>
+  );
+}
+
+function PublicLoadingPage() {
+  return (
+    <PatronShell title="Loading link" description="Checking this Bribe link.">
+      <Card title="Loading">
+        <p className="text-sm text-neutral-600">One moment.</p>
       </Card>
     </PatronShell>
   );

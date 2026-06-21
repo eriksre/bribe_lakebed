@@ -176,11 +176,13 @@ export function OwnerRoute({
   location,
   mutations,
   ownerData,
+  ownerLoaded,
 }: {
   auth: ReturnType<typeof useAuth>;
   location: LocationState;
   mutations: Mutations;
   ownerData: OwnerSnapshot;
+  ownerLoaded: boolean;
 }) {
   const [bootstrapped, setBootstrapped] = useState(false);
   const [bootstrapState, setBootstrapState] = useState<{ pending: boolean; error: string }>({ pending: false, error: "" });
@@ -197,14 +199,24 @@ export function OwnerRoute({
   }
 
   useEffect(() => {
-    if (!auth.isLoading && !auth.isGuest && !ownerData.venue && !bootstrapped) {
+    if (ownerLoaded && !auth.isLoading && !auth.isGuest && !ownerData.venue && !bootstrapped) {
       setBootstrapped(true);
       void ensureOwnerWorkspace();
     }
-  }, [auth.isGuest, auth.isLoading, bootstrapped, mutations, ownerData.venue]);
+  }, [auth.isGuest, auth.isLoading, bootstrapped, mutations, ownerData.venue, ownerLoaded]);
 
   if (!auth.isLoading && auth.isGuest) {
     return <HomePage auth={auth} mutations={mutations} ownerData={ownerData} />;
+  }
+
+  if (!ownerLoaded) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-neutral-950">
+        <Card title="Loading workspace" description="Lakebed is loading your venue workspace.">
+          <p className="text-sm text-neutral-600">One moment.</p>
+        </Card>
+      </main>
+    );
   }
 
   if (!ownerData.venue) {

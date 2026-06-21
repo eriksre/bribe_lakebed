@@ -13,9 +13,11 @@ export function useLocationState(): LocationState {
       }
     };
     window.addEventListener("popstate", update);
+    window.addEventListener("lakebed:locationchange", update);
     document.addEventListener("click", onClick);
     return () => {
       window.removeEventListener("popstate", update);
+      window.removeEventListener("lakebed:locationchange", update);
       document.removeEventListener("click", onClick);
     };
   }, []);
@@ -35,9 +37,9 @@ export function readLocation(): LocationState {
 export function navigate(path: string) {
   window.history.pushState({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
+  window.dispatchEvent(new Event("lakebed:locationchange"));
 }
 
 export function safeReturnPath(value: string) {
   return value.startsWith("/") && !value.startsWith("//") ? value : "/owner";
 }
-
