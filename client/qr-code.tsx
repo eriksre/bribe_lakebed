@@ -56,7 +56,6 @@ const FORMAT_MASK = 0x5412;
 const EC_LEVEL_M = 0;
 const QUIET_ZONE = 4;
 const FINDER_SIZE = 7;
-const FINDER_ZONE_SIZE = 9;
 const DEFAULT_OPTIONS: QrVisualOptions = {
   foregroundColor: DEFAULT_QR_FOREGROUND_COLOR,
   backgroundColor: DEFAULT_QR_BACKGROUND_COLOR,
@@ -143,7 +142,7 @@ export function createQrSvg(value: string, options?: Partial<QrVisualOptions>): 
   const modules: string[] = [];
   for (let y = 0; y < qr.size; y += 1) {
     for (let x = 0; x < qr.size; x += 1) {
-      if (qr.modules[y][x] && !isFinderZone(qr.size, x, y) && !isInLogoClearance(logo, x, y)) {
+      if (qr.modules[y][x] && !isFinderEye(qr.size, x, y) && !isInLogoClearance(logo, x, y)) {
         modules.push(drawDataModule(x + QUIET_ZONE, y + QUIET_ZONE, visual.dotStyle));
       }
     }
@@ -234,11 +233,11 @@ function isInLogoClearance(logo: LogoLayout | null, x: number, y: number): boole
   return Boolean(logo && x >= logo.clearStart && x < logo.clearEnd && y >= logo.clearStart && y < logo.clearEnd);
 }
 
-function isFinderZone(size: number, x: number, y: number): boolean {
-  const inTop = y < FINDER_ZONE_SIZE;
-  const inLeft = x < FINDER_ZONE_SIZE;
-  const inRight = x >= size - FINDER_ZONE_SIZE;
-  const inBottom = y >= size - FINDER_ZONE_SIZE;
+function isFinderEye(size: number, x: number, y: number): boolean {
+  const inTop = y < FINDER_SIZE;
+  const inLeft = x < FINDER_SIZE;
+  const inRight = x >= size - FINDER_SIZE;
+  const inBottom = y >= size - FINDER_SIZE;
   return (inTop && inLeft) || (inTop && inRight) || (inBottom && inLeft);
 }
 

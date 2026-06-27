@@ -18,6 +18,13 @@ npx lakebed db dump --port 3000
 npx lakebed logs --port 3000
 ```
 
+Verify QR generation and decoding:
+
+```sh
+node scripts/verify-qr-codes.mjs
+node scripts/verify-qr-codes.mjs --public-id <public-id> --local-origin http://localhost:3002
+```
+
 ## Main Flows
 
 - Owner setup: sign in with Google, create a venue workspace, then manage campaigns, QR codes, landing pages, approvals, content, rewards, and staff redemption.

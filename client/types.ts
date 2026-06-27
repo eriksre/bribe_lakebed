@@ -12,6 +12,7 @@ import type {
   SubmissionInput,
   SubmissionResult,
   Venue,
+  VenueSettingsInput,
 } from "../shared/domain";
 
 export type LocationState = {
@@ -28,7 +29,7 @@ export type Mutations = {
   updateQrCode: (id: string, input: QrInput) => Promise<QrCode | null>;
   deleteQrCode: (id: string) => Promise<boolean>;
   updateLandingSettings: (input: LandingSettingsInput) => Promise<LandingPageSettings>;
-  updateVenueSettings: (input: { name: string; captionTone: string; hashtags: string; requireApproval: boolean }) => Promise<Venue | null>;
+  updateVenueSettings: (input: VenueSettingsInput) => Promise<Venue | null>;
   submitPatronMedia: (input: SubmissionInput) => Promise<SubmissionResult>;
   retrySubmissionDecision: (id: string, approve: boolean) => Promise<SubmissionResult>;
   deleteSubmission: (id: string) => Promise<boolean>;

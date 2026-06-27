@@ -46,6 +46,7 @@ import type {
   SubmissionResult,
   SubmissionStatus,
   Venue,
+  VenueSettingsInput,
 } from "../shared/domain";
 
 type DbContext = {
@@ -285,13 +286,18 @@ export default capsule({
       return insertAndRead<LandingPageSettings>(ctx.db.landingPageSettings, values);
     }),
 
-    updateVenueSettings: mutation((ctx: DbContext, input: { name: string; captionTone: string; hashtags: string; requireApproval: boolean }): Venue | null => {
+    updateVenueSettings: mutation((ctx: DbContext, input: VenueSettingsInput): Venue | null => {
       const venue = ensureVenue(ctx);
+      const name = cleanText(input.name, 100) || venue.name;
+      const captionTone = input.captionTone ? normalizeCaptionTone(input.captionTone) : venue.captionTone || "warm";
+      const hashtags = typeof input.hashtags === "string"
+        ? cleanLongText(input.hashtags, 180) || DEFAULT_HASHTAGS
+        : venue.hashtags || DEFAULT_HASHTAGS;
       ctx.db.venues.update(venue.id, {
-        name: cleanText(input.name, 100) || venue.name,
-        slug: uniqueVenueSlug(ctx, input.name || venue.name, venue.id),
-        captionTone: normalizeCaptionTone(input.captionTone),
-        hashtags: cleanLongText(input.hashtags, 180) || DEFAULT_HASHTAGS,
+        name,
+        slug: uniqueVenueSlug(ctx, name, venue.id),
+        captionTone,
+        hashtags,
         requireApproval: Boolean(input.requireApproval),
       });
       return ctx.db.venues.get(venue.id) as Venue | null;

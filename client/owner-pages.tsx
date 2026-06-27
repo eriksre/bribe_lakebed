@@ -3,6 +3,12 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import {
   DEFAULT_HASHTAGS,
+  DEFAULT_QR_ACCENT_COLOR,
+  DEFAULT_QR_BACKGROUND_COLOR,
+  DEFAULT_QR_CORNER_STYLE,
+  DEFAULT_QR_DOT_STYLE,
+  DEFAULT_QR_FOREGROUND_COLOR,
+  DEFAULT_QR_LOGO_SIZE,
   averageScore,
   centsToDollarLabel,
   formatDate,
@@ -16,12 +22,6 @@ import type {
   Campaign,
   CampaignInput,
   CampaignStatus,
-  DEFAULT_QR_ACCENT_COLOR,
-  DEFAULT_QR_BACKGROUND_COLOR,
-  DEFAULT_QR_CORNER_STYLE,
-  DEFAULT_QR_DOT_STYLE,
-  DEFAULT_QR_FOREGROUND_COLOR,
-  DEFAULT_QR_LOGO_SIZE,
   LandingPageTargetType,
   OwnerSnapshot,
   QrCode,
@@ -30,8 +30,10 @@ import type {
   Submission,
 } from "../shared/domain";
 import { LandingShell } from "./landing";
-import { QrArtwork, downloadQrSvg, qrOptionsFromCode, validateQrValue } from "./qr-code";
+import { QrArtwork, downloadQrSvg, validateQrValue } from "./qr-code";
+import type { QrVisualOptions } from "./qr-code";
 import type { LocationState, Mutations } from "./types";
+import type { SetThemePreference, ThemePreference } from "./theme";
 import { getLandingTarget, settingFor } from "./public-helpers";
 import { navigate, safeReturnPath } from "./navigation";
 import {
@@ -46,6 +48,7 @@ import {
   EmptyState,
   Field,
   Metric,
+  Modal,
   PhotoPreview,
   Progress,
   ReadOnlyBox,
@@ -55,20 +58,32 @@ import {
   TextAreaField,
 } from "./ui";
 
+const CANONICAL_GUEST_ORIGIN = "https://bribe.lakebed.app";
+
+type QrPreviewState = {
+  name: string;
+  options: QrVisualOptions;
+};
+
 export function HomePage({
   auth,
   mutations,
   ownerData,
 }: {
-  auth: ReturnType<typeof useAuth>;
-  mutations: Mutations;
-  ownerData: OwnerSnapshot;
+  auth?: ReturnType<typeof useAuth>;
+  mutations?: Mutations;
+  ownerData?: OwnerSnapshot;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [businessName, setBusinessName] = useState(ownerData.venue?.name ?? "");
+  const [businessName, setBusinessName] = useState(ownerData?.venue?.name ?? "");
+  const venue = ownerData?.venue ?? null;
+  const hasOwnerSession = Boolean(auth && mutations && ownerData && !auth.isGuest);
 
   async function openWorkspace() {
+    if (!mutations || !ownerData) {
+      return;
+    }
     setPending(true);
     setError("");
     try {
@@ -90,48 +105,48 @@ export function HomePage({
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50 text-neutral-950">
-      <div className="mx-auto grid min-h-screen w-full max-w-5xl content-center gap-8 px-6 py-10">
+    <main className="bribe-app-theme bg-neutral-50 text-neutral-950" style={{ minHeight: "100dvh" }}>
+      <div className="mx-auto grid w-full max-w-5xl content-start gap-8 px-6 py-12 sm:py-16 lg:py-20" style={{ minHeight: "100dvh" }}>
         <header className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Bribe</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+          <h1 className="mt-3 text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
             Turn in-venue customer content into approved rewards.
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
+          <p className="mt-4 max-w-2xl text-pretty text-base leading-7 text-neutral-600">
             Create QR-linked photo tasks, issue rewards automatically, and review customer content before it becomes social copy.
           </p>
         </header>
 
-        <section className="grid gap-6 md:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid content-start gap-3">
             <FeatureLine title="QR-first customer flow" text="Customers scan a venue QR code to choose a task and submit content." />
             <FeatureLine title="Owner approval queue" text="Approved submissions create draft post copy for review before anything is marked posted." />
             <FeatureLine title="Staff redemption tools" text="Reward codes are tracked in a ledger and redeemed from the owner workspace." />
           </div>
 
-          <Card title={ownerData.venue ? "Open workspace" : "Create your owner account"} description="Sign up with Google, then create your venue workspace.">
-            <div className="grid gap-4">
-              {auth.isLoading ? (
+          <Card title={venue ? "Open workspace" : "Create your owner account"} description="Sign up with Google, then create your venue workspace.">
+            <div className="grid min-h-[10rem] content-start gap-4">
+              {auth?.isLoading ? (
                 <p className="text-sm text-neutral-600">Checking session...</p>
-              ) : auth.isGuest ? (
+              ) : !hasOwnerSession ? (
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                  className="bribe-button inline-flex h-10 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-neutral-800"
                   type="button"
-                  onClick={() => void signInWithGoogle()}
+                  onClick={() => void signInWithGoogle({ returnTo: "/owner" })}
                 >
                   Sign up with Google
                 </button>
               ) : (
                 <>
                   <div className="rounded-lg border bg-neutral-50 p-3 text-sm">
-                    <p className="font-medium">{auth.displayName || "Signed in"}</p>
-                    <p className="mt-1 truncate text-neutral-600">{auth.email || "Google account connected"}</p>
+                    <p className="font-medium">{auth?.displayName || "Signed in"}</p>
+                    <p className="mt-1 truncate text-neutral-600">{auth?.email || "Google account connected"}</p>
                   </div>
-                  {!ownerData.venue ? (
+                  {!venue ? (
                     <div className="space-y-2">
                       <label className="text-sm font-medium" htmlFor="businessName">Business name</label>
                       <input
-                        className="h-9 w-full rounded-md border bg-white px-2.5 text-sm"
+                        className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
                         id="businessName"
                         name="businessName"
                         placeholder="Acme Cafe"
@@ -141,15 +156,15 @@ export function HomePage({
                     </div>
                   ) : null}
                   <button
-                    className="inline-flex h-9 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
-                    disabled={pending || (!ownerData.venue && !businessName.trim())}
+                    className="bribe-button inline-flex h-10 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-neutral-800 disabled:opacity-60"
+                    disabled={pending || (!venue && !businessName.trim())}
                     type="button"
                     onClick={() => void openWorkspace()}
                   >
-                    {ownerData.venue ? "Open dashboard" : pending ? "Creating workspace" : "Create workspace"}
+                    {venue ? "Open dashboard" : pending ? "Creating workspace" : "Create workspace"}
                   </button>
                   {error ? <Alert tone="bad" title="Workspace problem">{error}</Alert> : null}
-                  <button className="justify-self-start text-sm text-neutral-500 hover:text-neutral-950" type="button" onClick={() => signOut()}>
+                  <button className="bribe-button min-h-10 justify-self-start rounded-md px-1 text-sm text-neutral-500 hover:text-neutral-950" type="button" onClick={() => signOut()}>
                     Sign out
                   </button>
                 </>
@@ -164,10 +179,22 @@ export function HomePage({
 
 function FeatureLine({ text, title }: { text: string; title: string }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
+    <div className="bribe-surface bribe-surface-hover rounded-xl border bg-white p-4">
       <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm leading-5 text-neutral-600">{text}</p>
+      <p className="mt-1 text-pretty text-sm leading-5 text-neutral-600">{text}</p>
     </div>
+  );
+}
+
+function OwnerFrame({ children, ownerData, path }: { children: ComponentChildren; ownerData: OwnerSnapshot; path: string }) {
+  return (
+    <main className="bribe-app-theme min-h-screen bg-neutral-50 text-neutral-950 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+      <OwnerSidebar ownerData={ownerData} path={path} />
+      <section className="min-w-0">
+        <MobileOwnerNav ownerData={ownerData} path={path} />
+        {children}
+      </section>
+    </main>
   );
 }
 
@@ -177,12 +204,16 @@ export function OwnerRoute({
   mutations,
   ownerData,
   ownerLoaded,
+  setThemePreference,
+  themePreference,
 }: {
   auth: ReturnType<typeof useAuth>;
   location: LocationState;
   mutations: Mutations;
   ownerData: OwnerSnapshot;
   ownerLoaded: boolean;
+  setThemePreference: SetThemePreference;
+  themePreference: ThemePreference;
 }) {
   const [bootstrapped, setBootstrapped] = useState(false);
   const [bootstrapState, setBootstrapState] = useState<{ pending: boolean; error: string }>({ pending: false, error: "" });
@@ -205,39 +236,42 @@ export function OwnerRoute({
     }
   }, [auth.isGuest, auth.isLoading, bootstrapped, mutations, ownerData.venue, ownerLoaded]);
 
+  const path = location.path;
+
   if (!auth.isLoading && auth.isGuest) {
     return <HomePage auth={auth} mutations={mutations} ownerData={ownerData} />;
   }
 
   if (!ownerLoaded) {
     return (
-      <main className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-neutral-950">
-        <Card title="Loading workspace" description="Lakebed is loading your venue workspace.">
-          <p className="text-sm text-neutral-600">One moment.</p>
-        </Card>
-      </main>
+      <OwnerFrame ownerData={ownerData} path={path}>
+        <OwnerPage description="Lakebed is loading your venue workspace." title="Loading workspace">
+          <OwnerLoadingContent />
+        </OwnerPage>
+      </OwnerFrame>
     );
   }
 
   if (!ownerData.venue) {
     return (
-      <main className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-neutral-950">
-        <Card title="Preparing workspace" description="Lakebed is creating your venue and primary QR code.">
-          <button
-            className="inline-flex h-9 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60"
-            disabled={bootstrapState.pending}
-            type="button"
-            onClick={() => void ensureOwnerWorkspace()}
-          >
-            {bootstrapState.pending ? "Creating workspace" : "Create workspace"}
-          </button>
-          {bootstrapState.error ? <div className="mt-3"><Alert tone="bad" title="Workspace problem">{bootstrapState.error}</Alert></div> : null}
-        </Card>
-      </main>
+      <OwnerFrame ownerData={ownerData} path={path}>
+        <OwnerPage description="Lakebed is creating your venue and primary QR code." title="Preparing workspace">
+          <Card title="Workspace setup" description="Lakebed is creating your venue and primary QR code.">
+            <button
+              className="bribe-button inline-flex h-10 items-center justify-center rounded-md border border-neutral-900 bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60"
+              disabled={bootstrapState.pending}
+              type="button"
+              onClick={() => void ensureOwnerWorkspace()}
+            >
+              {bootstrapState.pending ? "Creating workspace" : "Create workspace"}
+            </button>
+            {bootstrapState.error ? <div className="mt-3"><Alert tone="bad" title="Workspace problem">{bootstrapState.error}</Alert></div> : null}
+          </Card>
+        </OwnerPage>
+      </OwnerFrame>
     );
   }
 
-  const path = location.path;
   const parts = path.split("/").filter(Boolean);
   const segment = parts[1] ?? "";
   const subId = parts[2] ?? "";
@@ -262,7 +296,7 @@ export function OwnerRoute({
   } else if (path === "/owner/staff") {
     page = <StaffPage location={location} mutations={mutations} ownerData={ownerData} />;
   } else if (path === "/owner/settings") {
-    page = <SettingsPage mutations={mutations} ownerData={ownerData} />;
+    page = <SettingsPage mutations={mutations} ownerData={ownerData} setThemePreference={setThemePreference} themePreference={themePreference} />;
   } else if (segment === "submissions" && subId) {
     page = <SubmissionReviewPage mutations={mutations} ownerData={ownerData} submissionId={subId} />;
   } else if (parts[1] === "landing" && parts[2] && parts[3] && parts[4] === "edit") {
@@ -283,13 +317,26 @@ export function OwnerRoute({
     );
   }
 
+  return <OwnerFrame ownerData={ownerData} path={path}>{page}</OwnerFrame>;
+}
+
+function OwnerLoadingContent() {
   return (
-    <main className="min-h-screen bg-neutral-50 text-neutral-950 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      <OwnerSidebar auth={auth} ownerData={ownerData} path={path} />
-      <section className="min-w-0">
-        {page}
-      </section>
-    </main>
+    <div className="grid gap-5">
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="bribe-surface h-20 rounded-xl border bg-white" />
+        <div className="bribe-surface h-20 rounded-xl border bg-white" />
+        <div className="bribe-surface h-20 rounded-xl border bg-white" />
+        <div className="bribe-surface h-20 rounded-xl border bg-white" />
+      </div>
+      <Card title="Workspace data" description="Loading campaigns, QR codes, submissions, and rewards.">
+        <div className="grid gap-3">
+          <div className="h-10 rounded-md bg-neutral-100" />
+          <div className="h-10 rounded-md bg-neutral-100" />
+          <div className="h-10 rounded-md bg-neutral-100" />
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -326,7 +373,7 @@ function OwnerDashboard({ mutations, ownerData }: { mutations: Mutations; ownerD
             <div className="mb-4 grid gap-3 rounded-lg border bg-neutral-50 p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
               <div className="min-w-0">
                 <p className="text-neutral-500">Primary customer entry</p>
-                <p className="mt-1 truncate font-mono font-medium">{primaryQrCode ? `/q/${primaryQrCode.publicId}` : "No QR code yet"}</p>
+                <p className="bribe-tabular mt-1 truncate font-mono font-medium">{primaryQrCode ? `/q/${primaryQrCode.publicId}` : "No QR code yet"}</p>
               </div>
               <ButtonLink href={primaryQrCode ? `/q/${primaryQrCode.publicId}` : "/owner/table-code"} variant="secondary">Open QR landing</ButtonLink>
             </div>
@@ -352,7 +399,7 @@ function OwnerDashboard({ mutations, ownerData }: { mutations: Mutations; ownerD
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-medium">Estimated budget</p>
-                  <p className="font-mono text-sm">${budgetUsed} / $750</p>
+                  <p className="bribe-tabular font-mono text-sm">${budgetUsed} / $750</p>
                 </div>
                 <Progress value={Math.min(100, (budgetUsed / 750) * 100)} />
               </div>
@@ -476,7 +523,7 @@ function CampaignDetailPage({
       title={campaign.title}
     >
       <div className="grid gap-5">
-        <section className="overflow-hidden rounded-lg border bg-white">
+        <section className="bribe-surface overflow-hidden rounded-xl border bg-white">
           <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -493,7 +540,7 @@ function CampaignDetailPage({
             <div>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-sm font-medium">Usage</p>
-                <p className="font-mono text-sm text-neutral-600">{rewards.length} / {limitLabel(campaign.maxRedemptions)}</p>
+                <p className="bribe-tabular font-mono text-sm text-neutral-600">{rewards.length} / {limitLabel(campaign.maxRedemptions)}</p>
               </div>
               <Progress value={progressPercent(rewards.length, rewardLimit)} />
             </div>
@@ -523,7 +570,7 @@ function CampaignDetailPage({
               submission.patronName || "Guest",
               <Status tone={statusTone(submission.status)}>{statusLabel(submission.status)}</Status>,
               `Score ${submission.qualityScore || "-"}`,
-              <span className="font-mono">{submission.rewardCode || "Reward waiting"}</span>,
+              <span className="bribe-tabular font-mono">{submission.rewardCode || "Reward waiting"}</span>,
               <ButtonLink href={`/owner/submissions/${submission.id}`} variant="secondary">Review</ButtonLink>,
             ])}
           />
@@ -534,36 +581,207 @@ function CampaignDetailPage({
   );
 }
 
+const QR_BOARD_COLUMNS: Array<{ status: QrCode["status"]; label: string; hint: string }> = [
+  { status: "active", label: "Active", hint: "Live and scannable" },
+  { status: "paused", label: "Paused", hint: "Temporarily disabled" },
+  { status: "archived", label: "Archived", hint: "Retired codes" },
+];
+
 function QrCodesPage({ mutations, ownerData }: { mutations: Mutations; ownerData: OwnerSnapshot }) {
   const venue = ownerData.venue;
-  if (!venue) return null;
   const campaigns = ownerData.campaigns;
-  const firstQr = ownerData.qrCodes[0];
+  const qrCodes = ownerData.qrCodes;
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  if (!venue) return null;
+  const editing = editingId ? qrCodes.find((qrCode) => qrCode.id === editingId) ?? null : null;
+
+  async function moveQrCode(qrCode: QrCode, status: QrCode["status"]) {
+    setDragId(null);
+    if (qrCode.status === status) return;
+    await mutations.updateQrCode(qrCode.id, qrInputFromCode(qrCode, { status }));
+  }
 
   return (
     <OwnerPage
-      actions={firstQr ? <ButtonLink href={`/q/${firstQr.publicId}`}>Open guest landing</ButtonLink> : null}
+      actions={
+        <button
+          className="bribe-button h-10 rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-neutral-800"
+          type="button"
+          onClick={() => setCreating((value) => !value)}
+        >
+          {creating ? "Close" : "New QR code"}
+        </button>
+      }
       description="Manage permanent guest entry points and the campaigns each one exposes."
       title="QR codes"
     >
-      <div className="grid gap-6">
-        <Card title="New QR code" description="Create separate codes for locations, table tents, receipts, or campaigns.">
+      {creating ? (
+        <Card
+          title="New QR code"
+          description="Create separate codes for locations, table tents, receipts, or campaigns."
+          action={
+            <button
+              className="bribe-button bribe-surface bribe-surface-hover h-10 rounded-md border bg-white px-3.5 text-sm font-medium hover:bg-neutral-50"
+              type="button"
+              onClick={() => setCreating(false)}
+            >
+              Cancel
+            </button>
+          }
+        >
           <QrForm
             campaigns={campaigns}
-            onSubmit={(input) => mutations.createQrCode(input).then(() => undefined)}
+            onSubmit={(input) => mutations.createQrCode(input).then(() => setCreating(false))}
           />
         </Card>
+      ) : null}
 
-        {ownerData.qrCodes.map((qrCode) => (
-          <QrEditor
-            campaigns={campaigns}
+      {qrCodes.length ? (
+        <div className="grid items-start gap-4 lg:grid-cols-3">
+          {QR_BOARD_COLUMNS.map((column) => (
+            <QrBoardColumn
+              column={column}
+              dragId={dragId}
+              key={column.status}
+              qrCodes={qrCodes.filter((qrCode) => qrCode.status === column.status)}
+              onDrop={(status) => {
+                const dragged = qrCodes.find((qrCode) => qrCode.id === dragId);
+                if (dragged) void moveQrCode(dragged, status);
+              }}
+              onEdit={setEditingId}
+              onDragEnd={() => setDragId(null)}
+              onDragStart={setDragId}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState text="No QR codes yet. Use “New QR code” to create your first guest entry point." />
+      )}
+
+      {editing ? (
+        <Modal
+          description="Adjust branding, campaigns, and status. Changes apply to the existing printed code."
+          title={`Edit ${editing.name}`}
+          onClose={() => setEditingId(null)}
+        >
+          <QrEditor campaigns={campaigns} mutations={mutations} qrCode={editing} />
+        </Modal>
+      ) : null}
+    </OwnerPage>
+  );
+}
+
+function QrBoardColumn({
+  column,
+  dragId,
+  onDragEnd,
+  onDragStart,
+  onDrop,
+  onEdit,
+  qrCodes,
+}: {
+  column: { status: QrCode["status"]; label: string; hint: string };
+  dragId: string | null;
+  onDragEnd: () => void;
+  onDragStart: (id: string) => void;
+  onDrop: (status: QrCode["status"]) => void;
+  onEdit: (id: string) => void;
+  qrCodes: QrCode[];
+}) {
+  const [over, setOver] = useState(false);
+  const dragging = Boolean(dragId);
+
+  return (
+    <section
+      className={`flex min-h-32 flex-col gap-3 rounded-xl border bg-neutral-100/70 p-3 transition-colors ${over ? "border-neutral-950 bg-white" : "border-transparent"}`}
+      onDragLeave={() => setOver(false)}
+      onDragOver={(event) => {
+        if (!dragging) return;
+        event.preventDefault();
+        setOver(true);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        onDrop(column.status);
+      }}
+    >
+      <header className="flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold">{column.label}</h2>
+          <span className="bribe-tabular rounded-full bg-neutral-200 px-2 text-xs font-medium text-neutral-700">{qrCodes.length}</span>
+        </div>
+        <p className="truncate text-xs text-neutral-500">{column.hint}</p>
+      </header>
+      <div className="grid gap-3">
+        {qrCodes.map((qrCode) => (
+          <QrBoardCard
             key={qrCode.id}
-            mutations={mutations}
+            onDragEnd={onDragEnd}
+            onDragStart={() => onDragStart(qrCode.id)}
+            onEdit={() => onEdit(qrCode.id)}
             qrCode={qrCode}
           />
         ))}
+        {!qrCodes.length ? (
+          <p className="rounded-lg border border-dashed border-neutral-300 px-3 py-6 text-center text-xs text-neutral-500">
+            {dragging ? "Drop here" : "No codes"}
+          </p>
+        ) : null}
       </div>
-    </OwnerPage>
+    </section>
+  );
+}
+
+function QrBoardCard({
+  onDragEnd,
+  onDragStart,
+  onEdit,
+  qrCode,
+}: {
+  onDragEnd: () => void;
+  onDragStart: () => void;
+  onEdit: () => void;
+  qrCode: QrCode;
+}) {
+  const guestLandingPath = `/q/${qrCode.publicId}`;
+  const guestUrl = guestQrUrl(guestLandingPath);
+  const campaignCount = splitIds(qrCode.campaignIds).length;
+
+  return (
+    <article
+      className="bribe-surface bribe-surface-hover grid cursor-grab gap-3 rounded-lg border bg-white p-3 active:cursor-grabbing"
+      draggable
+      onDragEnd={onDragEnd}
+      onDragStart={(event) => {
+        event.dataTransfer?.setData("text/plain", qrCode.id);
+        onDragStart();
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="size-16 shrink-0 overflow-hidden rounded-md border p-1">
+          <QrArtwork options={qrVisualOptionsFromCode(qrCode)} value={guestUrl} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold">{qrCode.name}</h3>
+          <p className="truncate text-xs text-neutral-600">{qrCode.description || "No description"}</p>
+          <p className="mt-1 text-xs text-neutral-500">{campaignCount} campaign{campaignCount === 1 ? "" : "s"}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="bribe-button bribe-surface bribe-surface-hover h-9 flex-1 rounded-md border bg-white px-3 text-sm font-medium hover:bg-neutral-50"
+          type="button"
+          onClick={onEdit}
+        >
+          Edit appearance
+        </button>
+        <ButtonLink href={guestLandingPath} variant="secondary">Open</ButtonLink>
+      </div>
+    </article>
   );
 }
 
@@ -598,14 +816,14 @@ function ApprovalsPage({
                 `${submission.qualityScore || "-"} quality / ${submission.taskMatchScore || "-"} match`,
                 <div className="flex flex-wrap justify-end gap-2">
                   <AsyncButton
-                    className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50"
+                    className="h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50"
                     pendingLabel="Approving"
                     run={() => mutations.retrySubmissionDecision(submission.id, true)}
                   >
                     Approve
                   </AsyncButton>
                   <AsyncButton
-                    className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50"
+                    className="h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50"
                     pendingLabel="Rejecting"
                     run={() => mutations.retrySubmissionDecision(submission.id, false)}
                   >
@@ -624,7 +842,7 @@ function ApprovalsPage({
             <div className="grid gap-2">
               {queue.map((item) => (
                 <Link
-                  className={`block rounded-lg border p-3 hover:border-neutral-900 ${item.post.id === active.post.id ? "border-neutral-900 bg-neutral-100" : ""}`}
+                  className={`bribe-surface block rounded-lg border p-3 hover:border-neutral-900 ${item.post.id === active.post.id ? "border-neutral-900 bg-neutral-100" : ""}`}
                   to={`/owner/approvals?postId=${item.post.id}`}
                   key={item.post.id}
                 >
@@ -656,14 +874,14 @@ function ApprovalsPage({
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <AsyncButton
-                    className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50"
+                    className="h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50"
                     pendingLabel="Regenerating"
                     run={() => mutations.regenerateSocialPostCopy(active.post.id)}
                   >
                     Regenerate copy
                   </AsyncButton>
                   <AsyncButton
-                    className="h-9 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                    className="h-10 rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white hover:bg-neutral-800"
                     pendingLabel="Approving"
                     run={() => mutations.approveSocialPost(active.post.id)}
                   >
@@ -699,7 +917,7 @@ function ContentLibraryPage({ mutations, ownerData }: { mutations: Mutations; ow
             {approved.map((submission) => {
               const campaign = ownerData.campaigns.find((item) => item.id === submission.campaignId);
               return (
-                <div className="space-y-3 rounded-lg border p-3" key={submission.id}>
+                <div className="bribe-surface space-y-3 rounded-xl border p-3" key={submission.id}>
                   <PhotoPreview compact src={submission.mediaDataUrl} />
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -739,7 +957,7 @@ function RewardsPage({ ownerData }: { ownerData: OwnerSnapshot }) {
           <DataTable
             columns={["Code", "Status", "Reward", "Expires"]}
             rows={rewards.map((reward) => [
-              <span className="font-mono">{reward.code}</span>,
+              <span className="bribe-tabular font-mono">{reward.code}</span>,
               <Status tone={reward.status === "redeemed" ? "good" : "neutral"}>{statusLabel(reward.status)}</Status>,
               reward.label,
               formatDate(reward.expiresAt),
@@ -790,10 +1008,26 @@ function StaffPage({
   );
 }
 
-function SettingsPage({ mutations, ownerData }: { mutations: Mutations; ownerData: OwnerSnapshot }) {
+function SettingsPage({
+  mutations,
+  ownerData,
+  setThemePreference,
+  themePreference,
+}: {
+  mutations: Mutations;
+  ownerData: OwnerSnapshot;
+  setThemePreference: SetThemePreference;
+  themePreference: ThemePreference;
+}) {
   const venue = ownerData.venue;
   const [state, setState] = useState<{ pending: boolean; error: string; saved: boolean }>({ pending: false, error: "", saved: false });
   if (!venue) return null;
+
+  const publicVenuePath = `/${venue.slug}`;
+  const publicVenueUrl = guestQrUrl(publicVenuePath);
+  const ownerLabel = ownerData.auth.displayName || ownerData.auth.email || "Workspace owner";
+  const activeCampaigns = ownerData.campaigns.filter((campaign) => campaign.status === "active").length;
+  const activeQrCodes = ownerData.qrCodes.filter((qrCode) => qrCode.status === "active").length;
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -803,8 +1037,6 @@ function SettingsPage({ mutations, ownerData }: { mutations: Mutations; ownerDat
     try {
       await mutations.updateVenueSettings({
         name: String(data.get("name") ?? ""),
-        captionTone: String(data.get("captionTone") ?? "warm"),
-        hashtags: String(data.get("hashtags") ?? DEFAULT_HASHTAGS),
         requireApproval: data.get("requireApproval") === "on",
       });
       setState({ pending: false, error: "", saved: true });
@@ -815,40 +1047,103 @@ function SettingsPage({ mutations, ownerData }: { mutations: Mutations; ownerDat
 
   return (
     <OwnerPage
-      actions={<ButtonLink href={`/owner/landing/venue/${venue.id}/edit?returnPath=/owner/settings`} variant="secondary">Edit public page</ButtonLink>}
-      description="Brand defaults, caption tone, hashtags, and baseline campaign rules."
-      title="Venue settings"
+      actions={<ButtonLink href={publicVenuePath} variant="secondary">Open public page</ButtonLink>}
+      description="Venue identity, public page controls, and workspace behavior."
+      title="Workspace settings"
     >
       {state.saved ? <div className="mb-5 rounded-lg border bg-neutral-100 px-4 py-3 text-sm">Settings saved.</div> : null}
       {state.error ? <div className="mb-5"><Alert tone="bad" title="Could not save settings">{state.error}</Alert></div> : null}
-      <form className="grid gap-5 xl:grid-cols-2" onSubmit={(event) => void submit(event)}>
-        <Card title="Venue profile" description="Basic venue identity shown across owner and guest flows.">
-          <div className="grid gap-4">
-            <Field label="Venue name" name="name" required defaultValue={venue.name} />
-            <label className="flex items-center justify-between rounded-lg border p-3 text-sm">
-              <span className="font-medium">Require owner approval</span>
-              <input defaultChecked={venue.requireApproval} name="requireApproval" type="checkbox" />
-            </label>
-          </div>
-        </Card>
-        <Card title="Caption defaults" description="Defaults used when captions are drafted for approved content.">
-          <div className="grid gap-4">
-            <SelectField
-              defaultValue={venue.captionTone}
-              label="Caption tone"
-              name="captionTone"
-              options={[
-                ["warm", "Warm and casual"],
-                ["direct", "Clean and direct"],
-                ["playful", "Playful"],
-              ]}
-            />
-            <TextAreaField label="Default hashtags" name="hashtags" defaultValue={venue.hashtags || DEFAULT_HASHTAGS} />
-            <button className="h-9 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={state.pending} type="submit">{state.pending ? "Saving" : "Save settings"}</button>
-          </div>
-        </Card>
-      </form>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <form className="grid content-start gap-5" onSubmit={(event) => void submit(event)}>
+          <Card title="Venue profile" description="The venue identity shown across owner and guest flows.">
+            <div className="grid gap-4">
+              <Field label="Venue name" name="name" required defaultValue={venue.name} />
+              <label className="flex items-center justify-between gap-4 rounded-lg border p-3 text-sm">
+                <span>
+                  <span className="block font-medium">Require owner approval</span>
+                  <span className="mt-1 block text-neutral-600">Approved uploads wait in the approval queue before rewards are issued.</span>
+                </span>
+                <input className="size-4 shrink-0" defaultChecked={venue.requireApproval} name="requireApproval" type="checkbox" />
+              </label>
+              <button className="h-10 justify-self-start rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={state.pending} type="submit">{state.pending ? "Saving" : "Save settings"}</button>
+            </div>
+          </Card>
+        </form>
+
+        <div className="grid content-start gap-5">
+          <ThemePreferenceCard onChange={setThemePreference} value={themePreference} />
+
+          <Card title="Public venue page" description="The guest-facing page for this workspace.">
+            <div className="grid gap-4">
+              <div className="bribe-surface rounded-lg border p-3">
+                <p className="text-sm text-neutral-600">Public URL</p>
+                <p className="bribe-tabular mt-1 break-all font-mono text-sm font-medium">{publicVenueUrl}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <ButtonLink href={publicVenuePath} variant="secondary">Open</ButtonLink>
+                <ButtonLink href={`/owner/landing/venue/${venue.id}/edit?returnPath=/owner/settings`} variant="secondary">Edit public page</ButtonLink>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Workspace summary" description="Current workspace ownership and active setup.">
+            <div className="grid gap-3">
+              <Detail label="Owner" value={ownerLabel} />
+              <Detail label="Venue slug" mono value={venue.slug} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Detail label="Active campaigns" value={String(activeCampaigns)} />
+                <Detail label="Active QR codes" value={String(activeQrCodes)} />
+              </div>
+              <div className="bribe-surface flex items-center justify-between rounded-lg border p-3 text-sm">
+                <span className="text-neutral-600">Approval mode</span>
+                <Status tone={venue.requireApproval ? "neutral" : "muted"}>{venue.requireApproval ? "Manual review" : "Auto issue"}</Status>
+              </div>
+            </div>
+          </Card>
+
+          {!ownerData.auth.isGuest ? (
+            <Card title="Account" description="Manage the signed-in owner account.">
+              <div className="grid gap-3">
+                <Detail label="Signed in as" value={ownerData.auth.email || ownerLabel} />
+                <button className="bribe-surface bribe-surface-hover h-10 justify-self-start rounded-md border bg-white px-3.5 text-sm font-medium hover:bg-neutral-50" type="button" onClick={() => signOut()}>
+                  Sign out
+                </button>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
     </OwnerPage>
+  );
+}
+
+function ThemePreferenceCard({ onChange, value }: { onChange: SetThemePreference; value: ThemePreference }) {
+  const options: Array<{ label: string; preference: ThemePreference; text: string }> = [
+    { label: "System", preference: "system", text: "Match device" },
+    { label: "Light", preference: "light", text: "Light workspace" },
+    { label: "Dark", preference: "dark", text: "Dark workspace" },
+  ];
+
+  return (
+    <Card title="Appearance" description="Defaults to your system setting.">
+      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+        {options.map((option) => {
+          const active = option.preference === value;
+          return (
+            <button
+              aria-pressed={active}
+              className={`bribe-surface bribe-surface-hover rounded-lg border p-3 text-left text-sm ${active ? "border-neutral-950 bg-neutral-950 text-white" : "bg-white hover:bg-neutral-50"}`}
+              key={option.preference}
+              type="button"
+              onClick={() => onChange(option.preference)}
+            >
+              <span className="block font-medium">{option.label}</span>
+              <span className={`mt-1 block text-xs ${active ? "text-white" : "text-neutral-600"}`}>{option.text}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -885,7 +1180,7 @@ function SubmissionReviewPage({
               <div className="grid gap-3 sm:grid-cols-3">
                 <Detail label="Campaign" value={campaign.title} />
                 <Detail label="Code" mono value={reward?.code ?? "Not issued"} />
-                <div className="rounded-lg border p-3">
+                <div className="bribe-surface rounded-lg border p-3">
                   <p className="text-sm text-neutral-600">State</p>
                   <div className="mt-1"><Status tone={submission.status === "approved" ? "good" : "neutral"}>{statusLabel(reward?.status ?? submission.status)}</Status></div>
                 </div>
@@ -893,7 +1188,7 @@ function SubmissionReviewPage({
               <div className="flex flex-wrap gap-2">
                 {canApprove ? (
                   <AsyncButton
-                    className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50"
+                    className="h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50"
                     pendingLabel="Approving"
                     run={() => mutations.retrySubmissionDecision(submission.id, true)}
                   >
@@ -902,7 +1197,7 @@ function SubmissionReviewPage({
                 ) : null}
                 {canReject ? (
                   <AsyncButton
-                    className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50"
+                    className="h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50"
                     pendingLabel="Rejecting"
                     run={() => mutations.retrySubmissionDecision(submission.id, false)}
                   >
@@ -993,7 +1288,7 @@ function LandingEditorPage({
             <Field label="Accent color" name="accentColor" placeholder="#111111" defaultValue={settings?.accentColor ?? ""} />
             <Field label="Cards color" name="cardColor" placeholder="#ffffff" defaultValue={settings?.cardColor ?? ""} />
           </div>
-          <button className="h-9 justify-self-start rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={state.pending} type="submit">{state.pending ? "Saving" : "Save landing page"}</button>
+          <button className="h-10 justify-self-start rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={state.pending} type="submit">{state.pending ? "Saving" : "Save landing page"}</button>
         </form>
       </Card>
     </OwnerPage>
@@ -1066,7 +1361,7 @@ function CampaignForm({
         </div>
         {state.error ? <Alert tone="bad" title="Could not save">{state.error}</Alert> : null}
         {state.saved ? <Alert title="Saved">{mode === "create" ? "Campaign created." : "Campaign updated."}</Alert> : null}
-        <button className="h-9 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={state.pending} type="submit">
+        <button className="h-10 rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={state.pending} type="submit">
           {state.pending ? "Saving" : mode === "create" ? "Save campaign" : "Update campaign"}
         </button>
       </div>
@@ -1076,15 +1371,69 @@ function CampaignForm({
 
 function QrForm({
   campaigns,
+  onPreviewChange,
   onSubmit,
   qrCode,
 }: {
   campaigns: Campaign[];
+  onPreviewChange?: (preview: QrPreviewState) => void;
   onSubmit: (input: QrInput) => Promise<void>;
   qrCode?: QrCode;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const formId = qrCode?.id ?? "new";
+  const [previewName, setPreviewName] = useState(qrCode?.name ?? "");
+  const [previewOptions, setPreviewOptions] = useState<QrVisualOptions>(() => qrVisualOptionsFromCode(qrCode));
+  const [logoUrlDropActive, setLogoUrlDropActive] = useState(false);
+
+  useEffect(() => {
+    setPreviewName(qrCode?.name ?? "");
+    setPreviewOptions(qrVisualOptionsFromCode(qrCode));
+  }, [
+    qrCode?.accentColor,
+    qrCode?.backgroundColor,
+    qrCode?.cornerStyle,
+    qrCode?.dotStyle,
+    qrCode?.foregroundColor,
+    qrCode?.id,
+    qrCode?.logoImageUrl,
+    qrCode?.logoSize,
+    qrCode?.name,
+  ]);
+
+  useEffect(() => {
+    onPreviewChange?.({
+      name: previewName.trim() || qrCode?.name || "New QR code",
+      options: previewOptions,
+    });
+  }, [onPreviewChange, previewName, previewOptions, qrCode?.name]);
+
+  function updatePreviewOptions(values: Partial<QrVisualOptions>) {
+    setPreviewOptions((current) => ({ ...current, ...values }));
+  }
+
+  function updateLogoImageUrl(value: string) {
+    updatePreviewOptions({ logoImageUrl: value });
+  }
+
+  function dragLogoImageUrl(event: DragEvent) {
+    if (!hasUrlTransferData(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setLogoUrlDropActive(true);
+  }
+
+  function dropLogoImageUrl(event: DragEvent) {
+    event.preventDefault();
+    setLogoUrlDropActive(false);
+    const droppedUrl = urlFromDataTransfer(event.dataTransfer);
+    if (droppedUrl) {
+      updateLogoImageUrl(droppedUrl);
+    }
+  }
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -1106,7 +1455,11 @@ function QrForm({
         logoImageUrl: String(data.get("logoImageUrl") ?? ""),
         logoSize: String(data.get("logoSize") ?? DEFAULT_QR_LOGO_SIZE),
       });
-      if (!qrCode) form.reset();
+      if (!qrCode) {
+        form.reset();
+        setPreviewName("");
+        setPreviewOptions(qrVisualOptionsFromCode());
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "QR code save failed.");
     } finally {
@@ -1114,19 +1467,21 @@ function QrForm({
     }
   }
 
-  const foregroundColor = qrCode?.foregroundColor || DEFAULT_QR_FOREGROUND_COLOR;
-  const backgroundColor = qrCode?.backgroundColor || DEFAULT_QR_BACKGROUND_COLOR;
-  const accentColor = qrCode?.accentColor || DEFAULT_QR_ACCENT_COLOR;
-  const dotStyle = qrCode?.dotStyle || DEFAULT_QR_DOT_STYLE;
-  const cornerStyle = qrCode?.cornerStyle || DEFAULT_QR_CORNER_STYLE;
-  const logoImageUrl = qrCode?.logoImageUrl || "";
-  const logoSize = qrCode?.logoSize || DEFAULT_QR_LOGO_SIZE;
-  const formId = qrCode?.id ?? "new";
-
   return (
     <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr_180px]">
-        <Field label="Name" name="name" required placeholder="Downtown counter" defaultValue={qrCode?.name ?? ""} />
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor={`name-${formId}`}>Name</label>
+          <input
+            className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
+            id={`name-${formId}`}
+            name="name"
+            placeholder="Downtown counter"
+            required
+            value={previewName}
+            onInput={(event) => setPreviewName((event.currentTarget as HTMLInputElement).value)}
+          />
+        </div>
         <Field label="Description" name="description" placeholder="Where this printed code will be used" defaultValue={qrCode?.description ?? ""} />
         <SelectField defaultValue={qrCode?.status ?? "active"} label="Status" name="status" options={[["active", "Active"], ["paused", "Paused"], ["archived", "Archived"]]} />
       </div>
@@ -1134,7 +1489,7 @@ function QrForm({
         <p className="text-sm font-medium">Available campaigns</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {campaigns.map((campaign) => (
-            <label className="grid cursor-pointer grid-cols-[auto_1fr] gap-2 rounded-lg border p-3 text-sm" key={campaign.id}>
+            <label className="bribe-surface grid cursor-pointer grid-cols-[auto_1fr] gap-2 rounded-lg border p-3 text-sm" key={campaign.id}>
               <input className="mt-1" defaultChecked={qrCode ? splitIds(qrCode.campaignIds).includes(campaign.id) : false} name="campaignIds" type="checkbox" value={campaign.id} />
               <span className="min-w-0">
                 <span className="block truncate font-medium">{campaign.title}</span>
@@ -1150,56 +1505,85 @@ function QrForm({
           <p className="text-sm font-medium">QR appearance</p>
           <p className="mt-1 text-xs leading-5 text-neutral-600">Use high-contrast colors. Logo images must be public http or https URLs.</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <ColorField defaultValue={foregroundColor} id={`foregroundColor-${formId}`} label="Foreground" name="foregroundColor" />
-          <ColorField defaultValue={backgroundColor} id={`backgroundColor-${formId}`} label="Background" name="backgroundColor" />
-          <ColorField defaultValue={accentColor} id={`accentColor-${formId}`} label="Eye accent" name="accentColor" />
-          <SelectField
-            defaultValue={logoSize}
-            label="Logo size"
-            name="logoSize"
-            options={[
-              ["0", "No logo"],
-              ["14", "Small"],
-              ["20", "Medium"],
-              ["24", "Large"],
-            ]}
-          />
-          <SelectField
-            defaultValue={dotStyle}
-            label="Dot style"
-            name="dotStyle"
-            options={[
-              ["rounded", "Rounded"],
-              ["dots", "Dots"],
-              ["classy", "Soft blocks"],
-              ["square", "Classic"],
-            ]}
-          />
-          <SelectField
-            defaultValue={cornerStyle}
-            label="Corner style"
-            name="cornerStyle"
-            options={[
-              ["extra-rounded", "Extra rounded"],
-              ["rounded", "Rounded"],
-              ["square", "Classic"],
-            ]}
-          />
-          <div className="space-y-2 sm:col-span-2">
+        <div className="grid gap-4">
+          <fieldset className="grid gap-2">
+            <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">Colors</legend>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ColorField id={`foregroundColor-${formId}`} label="Foreground" name="foregroundColor" value={previewOptions.foregroundColor} onValueChange={(value) => updatePreviewOptions({ foregroundColor: value })} />
+              <ColorField id={`backgroundColor-${formId}`} label="Background" name="backgroundColor" value={previewOptions.backgroundColor} onValueChange={(value) => updatePreviewOptions({ backgroundColor: value })} />
+              <ColorField id={`accentColor-${formId}`} label="Eye accent" name="accentColor" value={previewOptions.accentColor} onValueChange={(value) => updatePreviewOptions({ accentColor: value })} />
+            </div>
+          </fieldset>
+          <fieldset className="grid gap-2">
+            <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">Shape</legend>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor={`dotStyle-${formId}`}>Dot style</label>
+                <select
+                  className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  id={`dotStyle-${formId}`}
+                  name="dotStyle"
+                  value={previewOptions.dotStyle}
+                  onChange={(event) => updatePreviewOptions({ dotStyle: (event.currentTarget as HTMLSelectElement).value as QrCode["dotStyle"] })}
+                >
+                  <option value="rounded">Rounded</option>
+                  <option value="dots">Dots</option>
+                  <option value="classy">Soft blocks</option>
+                  <option value="square">Classic</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor={`cornerStyle-${formId}`}>Corner style</label>
+                <select
+                  className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  id={`cornerStyle-${formId}`}
+                  name="cornerStyle"
+                  value={previewOptions.cornerStyle}
+                  onChange={(event) => updatePreviewOptions({ cornerStyle: (event.currentTarget as HTMLSelectElement).value as QrCode["cornerStyle"] })}
+                >
+                  <option value="extra-rounded">Extra rounded</option>
+                  <option value="rounded">Rounded</option>
+                  <option value="square">Classic</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor={`logoSize-${formId}`}>Logo size</label>
+                <select
+                  className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  id={`logoSize-${formId}`}
+                  name="logoSize"
+                  value={previewOptions.logoSize}
+                  onChange={(event) => updatePreviewOptions({ logoSize: (event.currentTarget as HTMLSelectElement).value })}
+                >
+                  <option value="0">No logo</option>
+                  <option value="14">Small</option>
+                  <option value="20">Medium</option>
+                  <option value="24">Large</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+          <div
+            className={`space-y-2 rounded-md border border-dashed p-2 ${logoUrlDropActive ? "border-neutral-950 bg-white" : "border-transparent"}`}
+            onDragEnter={(event) => dragLogoImageUrl(event)}
+            onDragLeave={() => setLogoUrlDropActive(false)}
+            onDragOver={(event) => dragLogoImageUrl(event)}
+            onDrop={(event) => dropLogoImageUrl(event)}
+          >
             <label className="text-sm font-medium" htmlFor={`logoImageUrl-${formId}`}>Logo URL</label>
             <input
-              className="h-9 w-full rounded-md border bg-white px-2.5 text-sm"
-              defaultValue={logoImageUrl}
+              className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
               id={`logoImageUrl-${formId}`}
               name="logoImageUrl"
               placeholder="https://example.com/logo.png"
               type="url"
+              value={previewOptions.logoImageUrl}
+              onInput={(event) => updateLogoImageUrl((event.currentTarget as HTMLInputElement).value)}
             />
           </div>
         </div>
       </div>
-      <button className="h-9 justify-self-start rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending} type="submit">
+      <button className="h-10 justify-self-start rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={pending} type="submit">
         {pending ? "Saving" : qrCode ? "Save QR code" : "Create QR code"}
       </button>
       {error ? <Alert tone="bad" title="Could not save QR code">{error}</Alert> : null}
@@ -1207,26 +1591,49 @@ function QrForm({
   );
 }
 
-function ColorField({ defaultValue, id, label, name }: { defaultValue: string; id: string; label: string; name: string }) {
-  const [value, setValue] = useState(defaultValue);
-  const safeValue = /^#[0-9a-fA-F]{6}$/.test(value) ? value : defaultValue;
+function ColorField({
+  id,
+  label,
+  name,
+  onValueChange,
+  value,
+}: {
+  id: string;
+  label: string;
+  name: string;
+  onValueChange: (value: string) => void;
+  value: string;
+}) {
+  const [textValue, setTextValue] = useState(value);
+  const safeValue = isHexColor(textValue) ? textValue : value;
+
+  useEffect(() => {
+    setTextValue(value);
+  }, [value]);
+
+  function updateValue(nextValue: string) {
+    setTextValue(nextValue);
+    if (isHexColor(nextValue)) {
+      onValueChange(nextValue);
+    }
+  }
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium" htmlFor={id}>{label}</label>
-      <div className="grid h-9 grid-cols-[2.5rem_1fr] overflow-hidden rounded-md border bg-white">
+      <div className="grid h-10 grid-cols-[2.75rem_1fr] overflow-hidden rounded-md border bg-white">
         <input
-          className="h-9 w-10 cursor-pointer border-0 bg-transparent p-1"
+          className="h-10 w-11 cursor-pointer border-0 bg-transparent p-1"
           id={id}
           type="color"
           value={safeValue}
-          onInput={(event) => setValue((event.currentTarget as HTMLInputElement).value)}
+          onInput={(event) => updateValue((event.currentTarget as HTMLInputElement).value)}
         />
         <input
           className="min-w-0 border-0 px-2 text-sm"
           pattern="#[0-9a-fA-F]{6}"
-          value={value}
-          onInput={(event) => setValue((event.currentTarget as HTMLInputElement).value)}
+          value={textValue}
+          onInput={(event) => updateValue((event.currentTarget as HTMLInputElement).value)}
         />
         <input name={name} type="hidden" value={safeValue} />
       </div>
@@ -1234,37 +1641,131 @@ function ColorField({ defaultValue, id, label, name }: { defaultValue: string; i
   );
 }
 
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function hasUrlTransferData(dataTransfer: DataTransfer | null): boolean {
+  return Array.from(dataTransfer?.types ?? []).some((type) =>
+    type === "text/uri-list" ||
+    type === "text/plain" ||
+    type === "text/html"
+  );
+}
+
+function urlFromDataTransfer(dataTransfer: DataTransfer | null): string {
+  if (!dataTransfer) {
+    return "";
+  }
+  return urlFromText(dataTransfer.getData("text/uri-list")) ||
+    urlFromText(dataTransfer.getData("text/plain")) ||
+    urlFromText(dataTransfer.getData("text/html"));
+}
+
+function urlFromText(value: string): string {
+  const text = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("#")) ?? "";
+  return text.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? "";
+}
+
+function qrVisualOptionsFromCode(qrCode?: QrCode): QrVisualOptions {
+  return {
+    foregroundColor: qrCode?.foregroundColor || DEFAULT_QR_FOREGROUND_COLOR,
+    backgroundColor: qrCode?.backgroundColor || DEFAULT_QR_BACKGROUND_COLOR,
+    accentColor: qrCode?.accentColor || DEFAULT_QR_ACCENT_COLOR,
+    dotStyle: qrCode?.dotStyle || DEFAULT_QR_DOT_STYLE,
+    cornerStyle: qrCode?.cornerStyle || DEFAULT_QR_CORNER_STYLE,
+    logoImageUrl: qrCode?.logoImageUrl || "",
+    logoSize: qrCode?.logoSize || DEFAULT_QR_LOGO_SIZE,
+  };
+}
+
+function qrPreviewFromCode(qrCode: QrCode): QrPreviewState {
+  return {
+    name: qrCode.name,
+    options: qrVisualOptionsFromCode(qrCode),
+  };
+}
+
+function qrInputFromCode(qrCode: QrCode, overrides: Partial<QrInput> = {}): QrInput {
+  return {
+    name: qrCode.name,
+    description: qrCode.description,
+    status: qrCode.status,
+    campaignIds: splitIds(qrCode.campaignIds),
+    foregroundColor: qrCode.foregroundColor,
+    backgroundColor: qrCode.backgroundColor,
+    accentColor: qrCode.accentColor,
+    dotStyle: qrCode.dotStyle,
+    cornerStyle: qrCode.cornerStyle,
+    logoImageUrl: qrCode.logoImageUrl,
+    logoSize: qrCode.logoSize,
+    ...overrides,
+  };
+}
+
 function QrEditor({ campaigns, mutations, qrCode }: { campaigns: Campaign[]; mutations: Mutations; qrCode: QrCode }) {
   const guestLandingPath = `/q/${qrCode.publicId}`;
-  const guestUrl = typeof window === "undefined" ? guestLandingPath : new URL(guestLandingPath, window.location.origin).toString();
+  const guestUrl = guestQrUrl(guestLandingPath);
   const qrValidation = validateQrValue(guestUrl);
-  const qrOptions = qrOptionsFromCode(qrCode);
+  const [preview, setPreview] = useState<QrPreviewState>(() => qrPreviewFromCode(qrCode));
   const [downloadError, setDownloadError] = useState("");
 
+  useEffect(() => {
+    setPreview(qrPreviewFromCode(qrCode));
+  }, [
+    qrCode.accentColor,
+    qrCode.backgroundColor,
+    qrCode.cornerStyle,
+    qrCode.dotStyle,
+    qrCode.foregroundColor,
+    qrCode.id,
+    qrCode.logoImageUrl,
+    qrCode.logoSize,
+    qrCode.name,
+  ]);
+
   function download() {
-    const result = downloadQrSvg(qrCode.name, guestUrl, qrOptions);
+    const result = downloadQrSvg(preview.name || qrCode.name, guestUrl, preview.options);
     setDownloadError(result.ok ? "" : result.message);
   }
 
   return (
-    <section className="grid gap-5 rounded-lg border bg-white p-4 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)]">
-      <div className="grid gap-4">
-        <QrCard options={qrOptions} title={qrCode.name} value={guestUrl} />
+    <div className="grid gap-5 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)] lg:gap-6">
+      <div className="grid content-start gap-4 lg:sticky lg:top-4 lg:self-start">
+        <QrCard options={preview.options} title={preview.name || qrCode.name} value={guestUrl} />
         <div className="flex flex-wrap gap-2">
           <ButtonLink href={guestLandingPath} variant="secondary">Open</ButtonLink>
           <ButtonLink href={`/owner/landing/qr_code/${qrCode.id}/edit?returnPath=/owner/table-code`} variant="secondary">Edit landing</ButtonLink>
           <Status tone={qrCode.status === "active" ? "good" : "muted"}>{statusLabel(qrCode.status)}</Status>
-          <button className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60" disabled={!qrValidation.ok} type="button" onClick={download}>Download SVG</button>
+          <button className="bribe-surface bribe-surface-hover h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60" disabled={!qrValidation.ok} type="button" onClick={download}>Download SVG</button>
           <DeleteButton label="Delete" onDelete={() => mutations.deleteQrCode(qrCode.id)} />
         </div>
         {!qrValidation.ok ? <Alert tone="bad" title="QR link is too long">{qrValidation.message}</Alert> : null}
         {downloadError ? <Alert tone="bad" title="Download failed">{downloadError}</Alert> : null}
-        <p className="break-all font-mono text-xs text-neutral-500">{guestUrl}</p>
+        <p className="bribe-tabular break-all font-mono text-xs text-neutral-500">{guestUrl}</p>
         <p className="text-xs text-neutral-500">QR payload: {qrValidation.byteLength} bytes. Built-in QR export supports short permanent links only.</p>
       </div>
-      <QrForm campaigns={campaigns} qrCode={qrCode} onSubmit={(input) => mutations.updateQrCode(qrCode.id, input).then(() => undefined)} />
-    </section>
+      <QrForm campaigns={campaigns} qrCode={qrCode} onPreviewChange={setPreview} onSubmit={(input) => mutations.updateQrCode(qrCode.id, input).then(() => undefined)} />
+    </div>
   );
+}
+
+function guestQrUrl(path: string): string {
+  if (typeof window === "undefined") {
+    return path;
+  }
+  return new URL(path, guestQrOrigin(window.location)).toString();
+}
+
+function guestQrOrigin(location: Location): string {
+  const hostname = location.hostname.toLowerCase();
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "::1";
+
+  // Lakebed deploy URLs are deployment-specific. Printed QR codes need the stable customer domain.
+  return isLocal ? location.origin : CANONICAL_GUEST_ORIGIN;
 }
 
 function RewardRedeemPanel({ initialCode, mutations }: { initialCode: string; mutations: Mutations }) {
@@ -1304,14 +1805,14 @@ function RewardRedeemPanel({ initialCode, mutations }: { initialCode: string; mu
     <section className="grid gap-3">
       <div className="flex items-center gap-2 text-sm font-medium">Reward redemption</div>
       <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
-        <form className="space-y-4 rounded-lg border bg-white p-5" onSubmit={(event) => void check(event)}>
+        <form className="bribe-surface space-y-4 rounded-xl border bg-white p-5" onSubmit={(event) => void check(event)}>
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="reward-code">Reward code</label>
-            <input className="h-9 w-full rounded-md border bg-white px-2.5 font-mono text-sm" id="reward-code" value={code} onInput={(event) => setCode((event.currentTarget as HTMLInputElement).value)} placeholder="BRIBE-ABCDEFGH" />
+            <input className="bribe-field bribe-tabular h-10 w-full rounded-md border bg-white px-3 font-mono text-sm" id="reward-code" value={code} onInput={(event) => setCode((event.currentTarget as HTMLInputElement).value)} placeholder="BRIBE-ABCDEFGH" />
           </div>
-          <button className="h-9 w-full rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending || !code.trim()} type="submit">{pending ? "Checking" : "Check code"}</button>
+          <button className="h-10 w-full rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={pending || !code.trim()} type="submit">{pending ? "Checking" : "Check code"}</button>
           {result?.reward ? (
-            <button className="h-9 w-full rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending || result.reward.status !== "issued"} type="button" onClick={() => void redeem()}>
+            <button className="h-10 w-full rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={pending || result.reward.status !== "issued"} type="button" onClick={() => void redeem()}>
               Mark redeemed
             </button>
           ) : null}
@@ -1319,7 +1820,7 @@ function RewardRedeemPanel({ initialCode, mutations }: { initialCode: string; mu
           {result && !result.ok ? <Alert tone="bad" title="Code problem">{result.message}</Alert> : null}
           {result?.ok ? <Alert title={result.message}>{result.reward ? `${result.reward.label} is ${statusLabel(result.reward.status)}.` : "Ready."}</Alert> : null}
         </form>
-        <div className="rounded-lg border bg-white p-5">
+        <div className="bribe-surface rounded-xl border bg-white p-5">
           <p className="text-sm text-neutral-600">Reward</p>
           <p className="mt-1 text-2xl font-semibold">{result?.reward?.label ?? "Check a code"}</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -1333,23 +1834,45 @@ function RewardRedeemPanel({ initialCode, mutations }: { initialCode: string; mu
   );
 }
 
-function OwnerSidebar({ auth, ownerData, path }: { auth: ReturnType<typeof useAuth>; ownerData: OwnerSnapshot; path: string }) {
-  const venue = ownerData.venue;
-  const counts = {
+function ownerNavCounts(ownerData: OwnerSnapshot) {
+  return {
     pendingApprovals: ownerData.socialPosts.filter((post) => post.status === "draft").length +
       ownerData.submissions.filter((submission) => submission.status === "needs_review").length,
     approvedMedia: ownerData.submissions.filter((submission) => submission.status === "approved").length,
     issuedRewards: ownerData.rewards.filter((reward) => reward.status !== "void").length,
   };
+}
+
+function MobileOwnerNav({ ownerData, path }: { ownerData: OwnerSnapshot; path: string }) {
+  const counts = ownerNavCounts(ownerData);
+
+  return (
+    <div className="sticky top-0 z-40 border-b bg-neutral-50/95 px-3 py-2 backdrop-blur lg:hidden">
+      <div className="flex items-center gap-2 overflow-x-auto">
+        <OwnerNavLink active={path === "/owner"} href="/owner" label="Dashboard" />
+        <OwnerNavLink active={path.startsWith("/owner/table-code")} href="/owner/table-code" label="QR" />
+        <OwnerNavLink active={path.startsWith("/owner/campaigns")} href="/owner/campaigns" label="Campaigns" />
+        <OwnerNavLink active={path.startsWith("/owner/approvals")} count={counts.pendingApprovals} href="/owner/approvals" label="Approvals" />
+        <OwnerNavLink active={path.startsWith("/owner/content")} count={counts.approvedMedia} href="/owner/content" label="Content" />
+        <OwnerNavLink active={path.startsWith("/owner/staff")} href="/owner/staff" label="Staff" />
+        <OwnerNavLink active={path.startsWith("/owner/settings")} href="/owner/settings" label="Settings" />
+      </div>
+    </div>
+  );
+}
+
+function OwnerSidebar({ ownerData, path }: { ownerData: OwnerSnapshot; path: string }) {
+  const venue = ownerData.venue;
+  const counts = ownerNavCounts(ownerData);
 
   return (
     <aside className="hidden min-h-screen border-r bg-neutral-100 lg:block">
       <div className="sticky top-0 flex h-screen flex-col">
         <div className="flex h-16 shrink-0 items-center border-b px-3">
-          <Link className="grid size-8 place-items-center rounded-md hover:bg-white" to="/">B</Link>
+          <Link className="bribe-button grid size-10 place-items-center rounded-md bg-neutral-950 text-sm font-semibold text-white shadow-sm hover:bg-neutral-800" to="/">B</Link>
           <div className="ml-2 min-w-0">
             <Link className="block truncate text-sm font-semibold hover:text-neutral-600" to="/">Bribe</Link>
-            <p className="truncate text-xs text-neutral-600">{venue?.name ?? "Owner"} view</p>
+            <p className="truncate text-xs text-neutral-600">{venue?.name ?? "Owner"}</p>
           </div>
         </div>
         <nav className="min-h-0 flex-1 space-y-6 overflow-auto p-3">
@@ -1366,21 +1889,14 @@ function OwnerSidebar({ auth, ownerData, path }: { auth: ReturnType<typeof useAu
           <NavSection title="Staff">
             <OwnerNavLink active={path.startsWith("/owner/staff")} href="/owner/staff" label="Staff tools" />
           </NavSection>
-          <NavSection title="Admin">
-            <OwnerNavLink active={path.startsWith("/owner/settings")} href="/owner/settings" label="Settings" />
-          </NavSection>
         </nav>
-        <div className="border-t p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{auth.displayName || "Guest"}</p>
-              <p className="truncate text-xs text-neutral-600">{auth.isGuest ? "Guest session" : "Signed in"}</p>
-            </div>
-            {!auth.isGuest ? (
-              <button className="text-sm text-neutral-600 hover:text-neutral-950" type="button" onClick={() => signOut()}>Sign out</button>
-            ) : null}
-          </div>
-        </div>
+        <Link
+          className={`bribe-button flex min-h-16 shrink-0 items-center gap-3 border-t px-3 py-3 text-sm font-medium ${path.startsWith("/owner/settings") ? "bribe-surface bg-white" : "hover:bg-white"}`}
+          to="/owner/settings"
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-full border bg-white text-xs font-semibold">S</span>
+          <span className="min-w-0 flex-1 truncate">Settings</span>
+        </Link>
       </div>
     </aside>
   );
@@ -1407,9 +1923,9 @@ function OwnerPage({ actions, children, description, title }: { actions?: Compon
   );
 }
 
-function QrCard({ options, title, value }: { options?: ReturnType<typeof qrOptionsFromCode>; title: string; value: string }) {
+function QrCard({ options, title, value }: { options?: Partial<QrVisualOptions>; title: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
+    <div className="bribe-surface rounded-xl border bg-white p-4">
       <p className="text-xs font-medium uppercase text-neutral-500">Immutable URL</p>
       <h3 className="mt-1 font-semibold">{title}</h3>
       <div className="mt-4 rounded-lg border p-3">
@@ -1431,9 +1947,9 @@ function NavSection({ children, title }: { children: ComponentChildren; title: s
 
 function OwnerNavLink({ active, count, href, label }: { active: boolean; count?: number; href: string; label: string }) {
   return (
-    <Link className={`flex h-9 items-center justify-between gap-2 rounded-md px-2.5 text-sm ${active ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-600 hover:bg-white hover:text-neutral-950"}`} to={href}>
-      <span>{label}</span>
-      {count ? <span className="rounded bg-neutral-950 px-1.5 text-xs text-white">{count}</span> : null}
+    <Link className={`bribe-button flex h-10 shrink-0 items-center justify-between gap-2 rounded-md px-3 text-sm ${active ? "bribe-surface border-transparent bg-white text-neutral-950" : "text-neutral-600 hover:bg-white hover:text-neutral-950"}`} to={href}>
+      <span className="whitespace-nowrap">{label}</span>
+      {count ? <span className="bribe-tabular rounded bg-neutral-950 px-1.5 text-xs text-white">{count}</span> : null}
     </Link>
   );
 }

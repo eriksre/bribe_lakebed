@@ -210,7 +210,7 @@ export function PatronCheckingPage({ location, mutations, qrPublicId }: { locati
           {needsReview ? <Alert title="Owner approval needed">Staff will approve or reject this submission before a code is issued. This page refreshes automatically.</Alert> : null}
           {waiting && status.lastCheckedAt ? <p className="text-xs text-neutral-500">Last checked {status.lastCheckedAt}. You can refresh this page or use the button below.</p> : null}
           {!done ? (
-            <button className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60" disabled={status.pending} type="button" onClick={status.refresh}>
+            <button className="bribe-button bribe-surface bribe-surface-hover h-10 rounded-md border px-3.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60" disabled={status.pending} type="button" onClick={status.refresh}>
               {status.pending ? "Refreshing" : "Refresh status"}
             </button>
           ) : null}
@@ -372,7 +372,7 @@ function PatronSubmissionForm({
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="campaign">Task</label>
         <select
-          className="h-9 w-full rounded-md border bg-white px-2.5 text-sm"
+          className="bribe-field h-10 w-full rounded-md border bg-white px-3 text-sm"
           id="campaign"
           required
           value={campaignId}
@@ -397,7 +397,7 @@ function PatronSubmissionForm({
       <Field label="First name" name="patronName" placeholder="Maya" />
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="media">Photo or video</label>
-        <input className="h-9 w-full rounded-md border bg-white px-2.5 py-1.5 text-sm" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" id="media" name="media" required type="file" />
+        <input className="bribe-field h-10 w-full rounded-md border bg-white px-3 py-2 text-sm" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" id="media" name="media" required type="file" />
       </div>
       <label className="flex items-start gap-2 rounded-lg border p-3 text-sm leading-5">
         <input checked={hasConsent} className="mt-1" required type="checkbox" onChange={(event) => setHasConsent((event.currentTarget as HTMLInputElement).checked)} />
@@ -405,7 +405,7 @@ function PatronSubmissionForm({
       </label>
       {state.error ? <Alert tone="bad" title="Submission failed">{state.error}</Alert> : null}
       {state.message ? <Alert title="Checking now">{state.message}</Alert> : null}
-      <button className="h-9 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={state.pending || !campaignId || !hasConsent} type="submit">
+      <button className="bribe-button h-10 rounded-md bg-neutral-950 px-3.5 text-sm font-medium text-white shadow-sm disabled:opacity-60" disabled={state.pending || !campaignId || !hasConsent} type="submit">
         {state.pending ? "Submitting" : "Submit photo"}
       </button>
     </form>
@@ -414,15 +414,15 @@ function PatronSubmissionForm({
 
 export function PatronShell({ actions, children, description, title }: { actions?: ComponentChildren; children: ComponentChildren; description: string; title: string }) {
   return (
-    <main className="min-h-screen bg-neutral-100 text-neutral-950">
+    <main className="bribe-app-theme min-h-screen bg-neutral-100 text-neutral-950">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col border-x bg-white shadow-sm">
-        <header className="border-b bg-white px-4 py-5">
+        <header className="border-b bg-white px-5 py-6">
           <Link className="text-sm text-neutral-500 hover:text-neutral-950" to="/">Bribe</Link>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
+          <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight">{title}</h1>
+          <p className="mt-2 text-pretty text-sm leading-6 text-neutral-600">{description}</p>
           {actions ? <div className="mt-4 grid gap-2">{actions}</div> : null}
         </header>
-        <div className="min-w-0 flex-1 px-4 py-4">{children}</div>
+        <div className="min-w-0 flex-1 px-5 py-5">{children}</div>
       </div>
     </main>
   );
@@ -463,7 +463,7 @@ function SubmissionTile({ campaign, submission }: { campaign?: Campaign; submiss
 
 function RewardCard({ code, expiresAt, label, status, venueName }: { code: string; expiresAt: string; label: string; status: string; venueName: string }) {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-white/15 bg-neutral-950 text-white shadow-2xl shadow-black/30">
+    <div className="bribe-reward-card relative overflow-hidden rounded-lg border border-white/15 bg-neutral-950 text-white shadow-2xl shadow-black/30">
       <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,.16), transparent 38%, rgba(255,255,255,.08))" }} />
       <div className="relative grid gap-6 p-5 sm:p-7">
         <div className="space-y-5 text-center">
@@ -472,16 +472,16 @@ function RewardCard({ code, expiresAt, label, status, venueName }: { code: strin
             <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">{label}</h2>
             <p className="text-sm capitalize text-white/70">{statusLabel(status)}</p>
           </div>
-          <div className="mx-auto w-full max-w-[300px] rounded-lg border border-neutral-300 bg-white p-4 text-neutral-950 shadow-xl shadow-black/25">
+          <div className="bribe-qr-plate mx-auto w-full max-w-[300px] rounded-lg border border-neutral-300 bg-white p-4 text-neutral-950 shadow-xl shadow-black/25">
             <QrArtwork value={code} />
           </div>
         </div>
         <div className="grid gap-4">
-          <div className="rounded-lg border border-white/12 bg-white/[0.08] p-4 text-center">
-            <p className="break-all font-mono text-2xl font-semibold text-white">{code}</p>
+          <div className="bribe-reward-panel rounded-lg border border-white/12 bg-white/[0.08] p-4 text-center">
+            <p className="bribe-tabular break-all font-mono text-2xl font-semibold text-white">{code}</p>
             <p className="mt-2 text-sm text-white/65">Show this at the counter</p>
           </div>
-          <div className="rounded-md border border-white/12 bg-white/[0.06] px-3 py-2 text-center text-sm text-white/75">{expiresAt ? `Valid until ${formatDate(expiresAt)}` : "Show staff before redeeming"}</div>
+          <div className="bribe-reward-panel rounded-md border border-white/12 bg-white/[0.06] px-3 py-2 text-center text-sm text-white/75">{expiresAt ? `Valid until ${formatDate(expiresAt)}` : "Show staff before redeeming"}</div>
         </div>
       </div>
     </div>

@@ -195,6 +195,13 @@ export type LandingSettingsInput = {
   cardColor: string;
 };
 
+export type VenueSettingsInput = {
+  name: string;
+  requireApproval: boolean;
+  captionTone?: string;
+  hashtags?: string;
+};
+
 export type SubmissionInput = {
   campaignId: string;
   patronName: string;
